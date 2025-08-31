@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<!-- v1.1 – 2025-08-28 11:00 Asia/Taipei | Initializes from STATE_WEBHOOK using lineId & site; no editing for expected counts; shows site name in title. -->
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>飲料存量 / 便當點心回報</title>
+  <style>
+    :root {
+      --bg: #0f172a;          /* slate-900 */
+      --card: #111827;        /* gray-900 */
+      --muted: #94a3b8;       /* slate-400 */
+      --fg: #e5e7eb;          /* gray-200 */
+      --accent: #22c55e;      /* green-500 */
+      --accent-2: #38bdf8;    /* sky-400 */
+      --danger: #f43f5e;      /* rose-500 */
+      --warn: #f59e0b;        /* amber-500 */
+      --border: #1f2937;      /* gray-800 */
+    }
+    * { box-sizing: border-box; }
+    html, body { background: var(--bg); color: var(--fg); margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+    .header { text-align: center; margin: 8px 0 16px; }
+    .header h1 { font-size: 1.35rem; margin: 0; letter-spacing: .02em; }
+    .sub { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin: 14px 0; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+    .card h2 { font-size: 1.1rem; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    @media (min-width: 640px) { .grid.sm-2 { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 768px) { .grid.md-4 { grid-template-columns: repeat(4, 1fr); } }
+
+    .field { background: #0b1220; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+    .label { font-size: .85rem; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .label b { color: var(--fg); font-weight: 600; }
+    input[type="number"], input[type="text"] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: #0a0f1c; color: var(--fg); font-size: 1rem; }
+    .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .btn { appearance: none; border: 1px solid transparent; background: var(--accent); color: #052e12; font-weight: 700; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-size: 1rem; }
+    .btn.secondary { background: var(--accent-2); color: #072635; }
+    .btn.warn { background: var(--warn); color: #3b2600; }
+    .btn.danger { background: var(--danger); color: #3b0810; }
+    .btn.ghost { background: transparent; border-color: var(--border); color: #e5e7eb; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .status { font-size: .9rem; margin-top: 8px; color: var(--muted); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .8rem; border: 1px solid var(--border); }
+    .pill.ok { background: rgba(34,197,94,.15); color: #86efac; border-color: rgba(34,197,94,.35); }
+    .pill.ng { background: rgba(244,63,94,.15); color: #fca5a5; border-color: rgba(244,63,94,.35); }
+
+    .muted { color: var(--muted); }
+    .hint { font-size: .8rem; color: var(--muted); margin-top: 4px; }
+    .divider { height: 1px; background: var(--border); margin: 10px 0; }
+    .expected-count {
+        font-size: 1.4rem;       /* 加大字體 */
+        font-weight: 700;        /* 粗體 */
+        color: #facc15;          /* 黃色高亮 (#facc15 = amber-400) */
+        background: rgba(250, 204, 21, 0.1); /* 淡黃色背景 */
+        padding: 4px 10px;
+        border-radius: 8px;
+        display: inline-block;
+        min-width: 2.5em;
+        text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="header">
+      <h1>飲料存量 / 便當 · 點心 回報 <span id="site-name" class="muted"></span></h1>
+      <div class="sub">---</div>
+      <div class="row" style="justify-content:center; margin-top:8px;">
+        <button class="btn ghost" id="btn-sync">手動同步</button>
+      </div>
+    </header>
+
+    <!-- 1) 飲料回報區塊 -->
+    <section class="card" id="drinks-card">
+      <h2>1. 飲料回報
+        <span class="pill" id="drinks-last">尚未回報</span>
+      </h2>
+      <div class="grid md-4">
+        <!-- 名稱由初始化帶入 -->
+        <div class="field">
+          <div class="label"><b id="d1-name">飲料 1</b><span class="muted">目前：<span id="d1-cur">0</span></span></div>
+          <input type="number" id="drink1" placeholder="輸入存量" min="0" inputmode="numeric" />
+        </div>
+        <div class="field">
+          <div class="label"><b id="d2-name">飲料 2</b><span class="muted">目前：<span id="d2-cur">0</span></span></div>
+          <input type="number" id="drink2" placeholder="輸入存量" min="0" inputmode="numeric" />
+        </div>
+        <div class="field">
+          <div class="label"><b id="d3-name">飲料 3</b><span class="muted">目前：<span id="d3-cur">0</span></span></div>
+          <input type="number" id="drink3" placeholder="輸入存量" min="0" inputmode="numeric" />
+        </div>
+        <div class="field">
+          <div class="label"><b id="d4-name">飲料 4</b><span class="muted">目前：<span id="d4-cur">0</span></span></div>
+          <input type="number" id="drink4" placeholder="輸入存量" min="0" inputmode="numeric" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn secondary" id="btn-drinks-submit">回報</button>
+      </div>
+      <div class="status" id="drinks-status">狀態：尚無</div>
+    </section>
+
+    <!-- 2) 便當回報區塊（已移除應收編輯） -->
+    <section class="card" id="bento-card">
+      <h2>2. 便當回報 <span class="pill" id="bento-last">尚未回報</span></h2>
+      <div class="grid sm-2">
+        <div class="field">
+          <div class="label"><b>葷便當 · 應收數量</b><span class="muted"><span id="bento-meat-expected-view" class="expected-count">0</span></span></div>
+        </div>
+        <div class="field">
+          <div class="label"><b>素便當 · 應收數量</b><span class="muted"><span id="bento-veg-expected-view" class="expected-count">0</span></span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="grid sm-2">
+        <div class="field">
+          <div class="label"><b>葷便當 · 狀態</b></div>
+          <div class="row">
+            <label><input type="radio" name="bento-meat-status" value="ok" checked> 正確</label>
+            <label><input type="radio" name="bento-meat-status" value="ng"> 錯誤</label>
+          </div>
+          <input type="text" id="bento-meat-reason" placeholder="若錯誤，請輸入原因" style="margin-top:8px; display:none;" />
+        </div>
+        <div class="field">
+          <div class="label"><b>素便當 · 狀態</b></div>
+          <div class="row">
+            <label><input type="radio" name="bento-veg-status" value="ok" checked> 正確</label>
+            <label><input type="radio" name="bento-veg-status" value="ng"> 錯誤</label>
+          </div>
+          <input type="text" id="bento-veg-reason" placeholder="若錯誤，請輸入原因" style="margin-top:8px; display:none;" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button class="btn secondary" id="btn-bento-submit">回報</button>
+      </div>
+      <div class="status" id="bento-status">狀態：尚無</div>
+    </section>
+
+    <!-- 3) 點心回報區塊（已移除應收編輯） -->
+    <section class="card" id="snack-card">
+      <h2>3. 點心回報 <span class="pill" id="snack-last">尚未回報</span></h2>
+      <div class="grid sm-2">
+        <div class="field">
+          <div class="label"><b>葷點心 · 應收數量</b><span class="muted"><span id="snack-meat-expected-view" class="expected-count">0</span></span></div>
+        </div>
+        <div class="field">
+          <div class="label"><b>素點心 · 應收數量</b><span class="muted"><span id="snack-veg-expected-view" class="expected-count">0</span></span></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="grid sm-2">
+        <div class="field">
+          <div class="label"><b>葷點心 · 狀態</b></div>
+          <div class="row">
+            <label><input type="radio" name="snack-meat-status" value="ok" checked> 正確</label>
+            <label><input type="radio" name="snack-meat-status" value="ng"> 錯誤</label>
+          </div>
+          <input type="text" id="snack-meat-reason" placeholder="若錯誤，請輸入原因" style="margin-top:8px; display:none;" />
+        </div>
+        <div class="field">
+          <div class="label"><b>素點心 · 狀態</b></div>
+          <div class="row">
+            <label><input type="radio" name="snack-veg-status" value="ok" checked> 正確</label>
+            <label><input type="radio" name="snack-veg-status" value="ng"> 錯誤</label>
+          </div>
+          <input type="text" id="snack-veg-reason" placeholder="若錯誤，請輸入原因" style="margin-top:8px; display:none;" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button class="btn secondary" id="btn-snack-submit">回報</button>
+      </div>
+      <div class="status" id="snack-status">狀態：尚無</div>
+    </section>
+
+    <!-- <footer class="muted" style="text-align:center; margin-top: 16px; font-size:.8rem;">
+      本頁示範前端與 localStorage 與 Webhook 互動。請依需求補上驗證與錯誤處理。
+    </footer> -->
+  </div>
+
+  <script>
+    // ====== Webhook URL（請替換為實際端點） ======
+    const WEBHOOK1 = "https://hook.us2.make.com/mlb6olapvfi3w1y3e1f7a472xq2xvyen";      // 飲料存量
+    const WEBHOOK2 = "https://hook.us2.make.com/r7jd8uql1yo3eupa4ph564r5n722oofr";      // 便當回報
+    const WEBHOOK3 = "https://hook.us2.make.com/a7omfyisig4oiorhreb4qhzbhhyuuo7o";      // 點心回報
+    const STATE_WEBHOOK = "https://hook.us2.make.com/xe75bbm3eqcjepa9lxr1v32gdud1jetr"; // 初始化
+
+    // ====== 工具：時間字串 ======
+    function nowStr() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    // ====== 工具：localStorage ======
+    function getLS(key, defVal) {
+      const s = localStorage.getItem(key);
+      if (s === null || s === undefined) return defVal;
+      try { return JSON.parse(s); } catch { return defVal; }
+    }
+    function setLS(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+    // ====== 工具：Query 參數 ======
+    function getQueryParams() {
+      const sp = new URLSearchParams(location.search);
+      return {
+        lineId: sp.get('lineId') || '',
+        site: Number(sp.get('site')) || 0 
+      };
+    }
+
+
+    // ====== 預設值 ======
+    const defaults = {
+      drink1: 0, drink2: 0, drink3: 0, drink4: 0,
+      bentoMeatExpected: 0, bentoVegExpected: 0,
+      snackMeatExpected: 0, snackVegExpected: 0,
+      drinksNames: ["飲料 1","飲料 2","飲料 3","飲料 4"],
+      siteName: ''
+    };
+
+    // ====== 通用 POST ======
+    async function postJSON(url, body) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const text = await res.text();
+        return { ok: res.ok, status: res.status, text };
+      } catch (err) {
+        return { ok: false, status: 0, text: String(err) };
+      }
+    }
+
+    // ====== UI 更新 ======
+    function refreshDrinkLabels() {
+      document.getElementById('d1-cur').textContent = getLS('drink1', defaults.drink1);
+      document.getElementById('d2-cur').textContent = getLS('drink2', defaults.drink2);
+      document.getElementById('d3-cur').textContent = getLS('drink3', defaults.drink3);
+      document.getElementById('d4-cur').textContent = getLS('drink4', defaults.drink4);
+
+      const names = getLS('drinksNames', defaults.drinksNames);
+      document.getElementById('d1-name').textContent = names[0] || '飲料 1';
+      document.getElementById('d2-name').textContent = names[1] || '飲料 2';
+      document.getElementById('d3-name').textContent = names[2] || '飲料 3';
+      document.getElementById('d4-name').textContent = names[3] || '飲料 4';
+    }
+    function refreshExpectedViews() {
+      document.getElementById('bento-meat-expected-view').textContent = getLS('bentoMeatExpected', 0);
+      document.getElementById('bento-veg-expected-view').textContent = getLS('bentoVegExpected', 0);
+      document.getElementById('snack-meat-expected-view').textContent = getLS('snackMeatExpected', 0);
+      document.getElementById('snack-veg-expected-view').textContent = getLS('snackVegExpected', 0);
+    }
+    function loadDrinkInputs() {
+      ['drink1','drink2','drink3','drink4'].forEach(id => {
+        const el = document.getElementById(id);
+        el.value = getLS(id, defaults[id]);
+      });
+    }
+
+    // ====== 狀態存取（便當/點心） ======
+    function saveBentoState() {
+      setLS('bentoMeatStatus', document.querySelector('input[name="bento-meat-status"]:checked').value);
+      setLS('bentoMeatReason', document.getElementById('bento-meat-reason').value || '');
+      setLS('bentoVegStatus', document.querySelector('input[name="bento-veg-status"]:checked').value);
+      setLS('bentoVegReason', document.getElementById('bento-veg-reason').value || '');
+    }
+    function loadBentoState() {
+      const ms = getLS('bentoMeatStatus', 'ok');
+      document.querySelector(`input[name="bento-meat-status"][value="${ms}"]`).checked = true;
+      document.getElementById('bento-meat-reason').value = getLS('bentoMeatReason', '');
+      document.getElementById('bento-meat-reason').style.display = (ms === 'ng') ? 'block' : 'none';
+
+      const vs = getLS('bentoVegStatus', 'ok');
+      document.querySelector(`input[name="bento-veg-status"][value="${vs}"]`).checked = true;
+      document.getElementById('bento-veg-reason').value = getLS('bentoVegReason', '');
+      document.getElementById('bento-veg-reason').style.display = (vs === 'ng') ? 'block' : 'none';
+    }
+    function saveSnackState() {
+      setLS('snackMeatStatus', document.querySelector('input[name="snack-meat-status"]:checked').value);
+      setLS('snackMeatReason', document.getElementById('snack-meat-reason').value || '');
+      setLS('snackVegStatus', document.querySelector('input[name="snack-veg-status"]:checked').value);
+      setLS('snackVegReason', document.getElementById('snack-veg-reason').value || '');
+    }
+    function loadSnackState() {
+      const ms = getLS('snackMeatStatus', 'ok');
+      document.querySelector(`input[name="snack-meat-status"][value="${ms}"]`).checked = true;
+      document.getElementById('snack-meat-reason').value = getLS('snackMeatReason', '');
+      document.getElementById('snack-meat-reason').style.display = (ms === 'ng') ? 'block' : 'none';
+
+      const vs = getLS('snackVegStatus', 'ok');
+      document.querySelector(`input[name="snack-veg-status"][value="${vs}"]`).checked = true;
+      document.getElementById('snack-veg-reason').value = getLS('snackVegReason', '');
+      document.getElementById('snack-veg-reason').style.display = (vs === 'ng') ? 'block' : 'none';
+    }
+
+    // ====== 綁定顯示/隱藏 錯誤原因 ======
+    function bindOkNg(groupName, reasonInputId) {
+      const radios = document.querySelectorAll(`input[name="${groupName}"]`);
+      const reason = document.getElementById(reasonInputId);
+      radios.forEach(r => r.addEventListener('change', () => {
+        if (document.querySelector(`input[name="${groupName}"]:checked`).value === 'ng') {
+          reason.style.display = 'block';
+        } else {
+          reason.style.display = 'none';
+          reason.value = '';
+        }
+      }));
+    }
+    bindOkNg('bento-meat-status', 'bento-meat-reason');
+    bindOkNg('bento-veg-status', 'bento-veg-reason');
+    bindOkNg('snack-meat-status', 'snack-meat-reason');
+    bindOkNg('snack-veg-status', 'snack-veg-reason');
+
+    // ====== 飲料本機存取 ======
+    function saveDrinkInputs() {
+      ['drink1','drink2','drink3','drink4'].forEach(id => {
+        const el = document.getElementById(id);
+        setLS(id, Number(el.value || 0));
+      });
+      refreshDrinkLabels();
+    }
+    function loadDrinkFromServerToLS(drinksQty) {
+      const keys = ['drink1','drink2','drink3','drink4'];
+      keys.forEach((k, i) => setLS(k, Number(drinksQty?.[i] ?? 0)));
+    }
+
+    // ====== 初始化：呼叫 STATE_WEBHOOK ======
+    async function initFromServer() {
+      const { lineId, site } = getQueryParams();
+      setLS('lineId', lineId);
+      setLS('siteNumber', site);
+
+      const res = await postJSON(STATE_WEBHOOK, { lineId, site});
+      if (!res.ok) {
+        document.querySelector('.sub').textContent = `初始化失敗：${res.text}`;
+        return;
+      }
+      let data; try { data = JSON.parse(res.text); } catch { data = null; }
+      if (!data) {
+        document.querySelector('.sub').textContent = `初始化回應非 JSON：${res.text}`;
+        return;
+      }
+
+      // 站點名稱
+      const siteName = data.site || '';
+      setLS('siteName', siteName);
+      document.getElementById('site-name').textContent = siteName ? `— ${siteName}` : '';
+
+      // 飲料名稱
+      if (Array.isArray(data.drinks) && data.drinks.length >= 4) {
+        setLS('drinksNames', data.drinks.slice(0,4));
+      }
+
+      // 飲料存量
+      if (Array.isArray(data.drinks_qty)) {
+        loadDrinkFromServerToLS(data.drinks_qty);
+      }
+
+      // 便當/點心 應收與狀態
+      if (data.bento) {
+        setLS('bentoMeatExpected', Number(data.bento.meat || 0));
+        setLS('bentoVegExpected', Number(data.bento.veg || 0));
+
+        const meatState = data.bento.state?.meat ?? '';
+        const vegState  = data.bento.state?.veg  ?? '';
+        // 膠囊顯示：葷/素各自的狀態
+        const bentoLast = document.getElementById('bento-last');
+        bentoLast.textContent =
+          (meatState || vegState)
+            ? `葷：${meatState || '-'} · 素：${vegState || '-'}`
+            : '待回報';
+
+        bentoLast.className =
+          (meatState === '待回報' || vegState === '待回報') ? 'pill ng' : 'pill ok';
+      }
+
+      if (data.snack) {
+        setLS('snackMeatExpected', Number(data.snack.meat || 0));
+        setLS('snackVegExpected', Number(data.snack.veg || 0));
+
+        const meatState = data.snack.state?.meat ?? '';
+        const vegState  = data.snack.state?.veg  ?? '';
+        // 膠囊顯示：葷/素各自的狀態
+        const snackLast = document.getElementById('snack-last');
+        snackLast.textContent =
+          (meatState || vegState)
+            ? `葷：${meatState || '-'} · 素：${vegState || '-'}`
+            : '待回報';
+
+        snackLast.className =
+          (meatState === '待回報' || vegState === '待回報') ? 'pill ng' : 'pill ok';
+      }
+
+      // 更新 UI
+      refreshDrinkLabels();
+      refreshExpectedViews();
+      loadDrinkInputs();
+    }
+
+    // 手動同步（重新呼叫初始化流程）
+    async function manualSync() {
+      const btn = document.getElementById('btn-sync');
+      const sub = document.querySelector('.sub');
+      const old = sub.textContent;
+
+      btn.disabled = true;
+      const labelOld = btn.textContent;
+      btn.textContent = '同步中…';
+
+      try {
+        await initFromServer();  // 重新跑初始化
+        // 成功後刷新 UI（保險起見再跑一次）
+        refreshDrinkLabels();
+        refreshExpectedViews();
+        loadDrinkInputs();
+        loadBentoState();
+        loadSnackState();
+        sub.textContent = `已完成同步（${nowStr()}）`;
+      } catch (e) {
+        sub.textContent = `同步失敗：${String(e)}`;
+      } finally {
+        setTimeout(() => { sub.textContent = old; }, 3000); // 幾秒後恢復原訊息
+        btn.textContent = labelOld;
+        btn.disabled = false;
+      }
+    }
+
+    // 綁定按鈕
+    document.getElementById('btn-sync')?.addEventListener('click', manualSync);
+
+    // ====== 飲料提交 ======
+    document.getElementById('btn-drinks-submit').addEventListener('click',async()=>{
+        saveDrinkInputs();
+        const payload={
+            lineId:getLS('lineId',''),
+            site: getLS('siteNumber', 0),
+            section:'drinks',
+            time:nowStr(),
+            data:{
+            drink1:getLS('drink1',0),
+            drink2:getLS('drink2',0),
+            drink3:getLS('drink3',0),
+            drink4:getLS('drink4',0)
+            }
+        };
+        const r=await postJSON(WEBHOOK1,payload);
+        const ts=nowStr();
+        document.getElementById('drinks-last').textContent=`回報於 ${ts}`;
+        document.getElementById('drinks-last').className='pill ok';
+        document.getElementById('drinks-status').textContent=r.ok?`Webhook 回應（${r.status}）：${r.text}`:`送出失敗：${r.text}`;
+    });
+
+    // ====== 便當提交 ======
+    document.getElementById('btn-bento-submit').addEventListener('click',async()=>{
+        saveBentoState();
+        const payload={
+            lineId:getLS('lineId',''),
+            site: getLS('siteNumber', 0),
+            section:'bento',
+            time:nowStr(),
+            data:{
+            expected:{meat:getLS('bentoMeatExpected',0),veg:getLS('bentoVegExpected',0)},
+            status:{
+                meat:{state:getLS('bentoMeatStatus','ok'),reason:getLS('bentoMeatReason','')},
+                veg:{state:getLS('bentoVegStatus','ok'),reason:getLS('bentoVegReason','')}
+            }
+            }
+        };
+        const r=await postJSON(WEBHOOK2,payload);
+        const ts=nowStr();
+        document.getElementById('bento-last').textContent=`回報於 ${ts}`;
+        document.getElementById('bento-last').className='pill ok';
+        document.getElementById('bento-status').textContent=r.ok?`Webhook 回應（${r.status}）：${r.text}`:`送出失敗：${r.text}`;
+    });
+
+    // ====== 點心提交 ======
+    document.getElementById('btn-snack-submit').addEventListener('click',async()=>{
+        saveSnackState();
+        const payload={
+            lineId:getLS('lineId',''),
+            site: getLS('siteNumber', 0),
+            section:'snack',
+            time:nowStr(),
+            data:{
+                expected:{meat:getLS('snackMeatExpected',0),veg:getLS('snackVegExpected',0)},
+                status:{
+                    meat:{state:getLS('snackMeatStatus','ok'),reason:getLS('snackMeatReason','')},
+                    veg:{state:getLS('snackVegStatus','ok'),reason:getLS('snackVegReason','')}
+                }
+            }
+        };
+        const r=await postJSON(WEBHOOK3,payload);
+        const ts=nowStr();
+        document.getElementById('snack-last').textContent=`回報於 ${ts}`;
+        document.getElementById('snack-last').className='pill ok';
+        document.getElementById('snack-status').textContent=r.ok?`Webhook 回應（${r.status}）：${r.text}`:`送出失敗：${r.text}`;
+    });
+
+    // ====== 首次載入 ======
+    async function init() {
+      await initFromServer();
+      // 若初始化失敗，仍以本機資料刷新
+      refreshDrinkLabels();
+      refreshExpectedViews();
+      loadDrinkInputs();
+      loadBentoState();
+      loadSnackState();
+    }
+    init();
+  </script>
+</body>
+</html>
